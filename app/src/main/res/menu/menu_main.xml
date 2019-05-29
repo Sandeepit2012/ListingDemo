@@ -1,0 +1,17 @@
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    tools:context="com.appstreet.listingdemo.activities.MainActivity">
+    <item
+        android:id="@+id/action_colunm_two"
+        android:title="@string/action_two"
+        app:showAsAction="never" />
+    <item
+        android:id="@+id/action_colunm_three"
+        android:title="@string/action_three"
+        app:showAsAction="never" />
+    <item
+        android:id="@+id/action_colunm_four"
+        android:title="@string/action_four"
+        app:showAsAction="never" />
+</menu>

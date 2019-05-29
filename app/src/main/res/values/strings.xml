@@ -1,0 +1,9 @@
+<resources>
+    <string name="app_name">ListingDemo</string>
+    <string name="action_two">2</string>
+    <string name="action_three">3</string>
+    <string name="action_four">4</string>
+    <string name="search">Search</string>
+    <string name="search_now">Search Images</string>
+    <string name="error">Error occurred</string>
+</resources>
