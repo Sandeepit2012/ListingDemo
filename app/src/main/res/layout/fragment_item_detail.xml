@@ -8,7 +8,7 @@
     android:gravity="top">
 
     <ImageView
-        android:id="@+id/animal_detail_image_view"
+        android:id="@+id/detail_image_view"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         tools:src="@drawable/ic_launcher_background" />

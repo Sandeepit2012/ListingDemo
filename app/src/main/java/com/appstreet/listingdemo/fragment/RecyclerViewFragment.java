@@ -20,6 +20,7 @@ import android.widget.ImageView;
 import android.widget.ProgressBar;
 import android.widget.Toast;
 
+import com.appstreet.listingdemo.DemoApplication;
 import com.appstreet.listingdemo.R;
 import com.appstreet.listingdemo.activities.MainActivity;
 import com.appstreet.listingdemo.adapter.GridAdapter;
@@ -28,8 +29,11 @@ import com.appstreet.listingdemo.listener.ItemClickListener;
 import com.appstreet.listingdemo.model.DataModel;
 import com.appstreet.listingdemo.model.Value;
 import com.appstreet.listingdemo.presenter.DataPresenter;
+import com.appstreet.listingdemo.utilities.AppUtils;
 import com.google.gson.Gson;
+import com.google.gson.reflect.TypeToken;
 
+import java.lang.reflect.Type;
 import java.util.ArrayList;
 
 
@@ -38,9 +42,14 @@ public class RecyclerViewFragment extends Fragment implements ItemClickListener 
 
     public static final String TAG = RecyclerViewFragment.class.getSimpleName();
     public String mSearch;
-    DataModel model;
+    private DataModel model;
+    private DataModel modelCache ;
     private boolean isLoading=false;
-    ArrayList<Value> mValue=new ArrayList<>();
+    private ArrayList<Value> mValue=new ArrayList<>();
+    private RecyclerView mRecyclerView;
+    private GridAdapter mAdapter;
+    private ProgressBar mProgress;
+    private int offset;
 
     @SuppressLint("ValidFragment")
     public RecyclerViewFragment(String response) {
@@ -60,56 +69,72 @@ public class RecyclerViewFragment extends Fragment implements ItemClickListener 
     @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container,
                              Bundle savedInstanceState) {
-        View view=inflater.inflate(R.layout.activity_recycler_view, container, false);;
+        View view=inflater.inflate(R.layout.fragment_recycler_view, container, false);;
         init(view);
         return view;
     }
 
-    /*@Override
-    public void onViewCreated(View view, @Nullable Bundle savedInstanceState) {
-        super.onViewCreated(view, savedInstanceState);
-    }*/
-    private RecyclerView mRecyclerView;
-    private GridAdapter mAdapter;
-    private ProgressBar mProgress;
     private void init(View view) {
+        String key = "value";
+        Type object = new TypeToken<DataModel>() {
+        }.getType();
+
+        modelCache = (DataModel) DemoApplication.getInstance().getCacheManager().get(key, DataModel.class, object);
+
         mProgress = view.findViewById(R.id.pb_main_progress);
         mRecyclerView = view.findViewById(R.id.rv_items);
         GridLayoutManager gridLayoutManager = new GridLayoutManager(getActivity(), MainActivity.SPAN);
         mRecyclerView.setLayoutManager(gridLayoutManager);
-        getList(mSearch);
-        initScrollListener();
 
-        /*Gson gson = new Gson();
-        model = gson.fromJson(mSearch, DataModel.class);
-        mRecyclerView = view.findViewById(R.id.rv_items);
-        GridLayoutManager gridLayoutManager = new GridLayoutManager(getActivity(), MainActivity.SPAN);
-        mRecyclerView.setLayoutManager(gridLayoutManager);
-        mAdapter = new GridAdapter(model.value, RecyclerViewFragment.this);
-        mRecyclerView.setAdapter(mAdapter);*/
+
+        if (AppUtils.isNetworkConnected(getActivity())) {
+            getList(mSearch);
+        }else {
+            if(modelCache!=null) {
+                for (int i = 0; i < modelCache.value.size(); i++) {
+                    if (modelCache.value.get(i).name.toLowerCase().indexOf(mSearch.toLowerCase()) != -1) {
+                        mValue.add(modelCache.value.get(i));
+                    }
+                }
+                mAdapter = new GridAdapter(mValue, RecyclerViewFragment.this);
+                mRecyclerView.setAdapter(mAdapter);
+                mAdapter.notifyDataSetChanged();
+            }
+        }
+
+        initScrollListener();
     }
-    int offset;
+
     private void getList(String query) {
         mProgress.setVisibility(View.VISIBLE);
         new DataPresenter(new DataListener() {
             @Override
             public void onSuccess(String response) {
                 mProgress.setVisibility(View.GONE);
-
-                Log.d("data", response);
                 try {
-//                    JSONObject obj = new JSONObject(response);
-//                    mOffset = obj.getInt("nextOffset");
                     Gson gson = new Gson();
                     model = gson.fromJson(response, DataModel.class);
+
                     mValue.addAll(model.value);
                     offset = model.nextOffset;
+
                     if(model.currentOffset==0){
+                        if (modelCache==null)
+                            modelCache=model;
+                        else
+                            modelCache.value.addAll(model.value);
+
                         mAdapter = new GridAdapter(mValue, RecyclerViewFragment.this);
                         mRecyclerView.setAdapter(mAdapter);
+                        mAdapter.notifyDataSetChanged();
                     }else {
+                        modelCache.value.addAll(model.value);
+                        modelCache.currentOffset = model.currentOffset;
+                        modelCache.nextOffset = model.nextOffset;
                         mValue.addAll(model.value);
                     }
+                    DemoApplication.getInstance().getCacheManager().put(getActivity().getResources().getString(R.string.value), modelCache);
+
                 } catch (Exception e) {
                     mProgress.setVisibility(View.GONE);
                     Toast.makeText(getActivity(), getActivity().getResources().getString(R.string.error), Toast.LENGTH_LONG).show();
@@ -166,12 +191,13 @@ public class RecyclerViewFragment extends Fragment implements ItemClickListener 
             @Override
             public void onScrolled(@NonNull RecyclerView recyclerView, int dx, int dy) {
                 super.onScrolled(recyclerView, dx, dy);
-                //GridLayoutManager gridLayoutManager = new GridLayoutManager(getActivity(), MainActivity.SPAN);
                 int childAdapterPosition = recyclerView.getChildAdapterPosition(recyclerView.getChildAt(recyclerView.getChildCount() - 1));
                 if (!isLoading) {
                     if ( childAdapterPosition == mValue.size() - 1) {
-                        loadMore();
-                        isLoading = true;
+                        if(AppUtils.isNetworkConnected(getActivity())) {
+                            loadMore();
+                            isLoading = true;
+                        }
                     }
                 }
             }
@@ -179,9 +205,6 @@ public class RecyclerViewFragment extends Fragment implements ItemClickListener 
     }
 
     private void loadMore() {
-        //model.value.add(null);
-//        mAdapter.notifyItemInserted(model.value.size() - 1);
-
         Handler handler = new Handler();
         handler.postDelayed(new Runnable() {
             @Override
@@ -196,12 +219,12 @@ public class RecyclerViewFragment extends Fragment implements ItemClickListener 
 
     @Override
     public void onItemClick(int pos, Value gridItem, ImageView shareImageView) {
-        Fragment animalViewPagerFragment = AnimalViewPagerFragment.newInstance(pos, mValue);
+        Fragment viewPagerFragment = ViewPagerFragment.newInstance(pos, mValue);
         getFragmentManager()
                 .beginTransaction()
                 .addSharedElement(shareImageView, ViewCompat.getTransitionName(shareImageView))
                 .addToBackStack(TAG)
-                .add(R.id.content, animalViewPagerFragment)
+                .add(R.id.content, viewPagerFragment)
                 .commit();
     }
 }
